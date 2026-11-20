@@ -1,12 +1,13 @@
 #include "BigCalculator.h"
 
 #include <map>
+#include <string>
 #include <utility>
 
 typedef std::vector<char> Digits;
 typedef std::pair<char, char> Pair;
 
-const std::size_t kLen = 8;
+const int kLen = 8;
 const char kZero = 'a';
 const char kOne = 'b';
 const char kTwo = 'e';
@@ -26,10 +27,11 @@ static Tables buildTables() {
     char x = kZero;
     do {
         char s = x;
-        char y = kZero;
         bool wrapped = false;
+        char y = kZero;
         do {
             t.sum[std::make_pair(x, y)] = s;
+            t.diff[std::make_pair(s, y)] = x;
             t.carry[std::make_pair(x, y)] = wrapped;
             y = kNext.at(y);
             s = kNext.at(s);
@@ -37,9 +39,6 @@ static Tables buildTables() {
         } while (y != kZero);
         x = kNext.at(x);
     } while (x != kZero);
-    for (std::map<Pair, char>::const_iterator it = t.sum.begin(); it != t.sum.end(); ++it) {
-        t.diff[std::make_pair(it->second, it->first.second)] = it->first.first;
-    }
     return t;
 }
 
@@ -75,50 +74,67 @@ static Digits two() {
 }
 
 static bool isZero(const Digits& d) {
-    for (std::size_t i = 0; i < d.size(); ++i) {
-        if (d[i] != kZero) return false;
+    for (char c : d) {
+        if (c != kZero) return false;
     }
     return true;
 }
 
-static int compare(const Digits& x, const Digits& y) {
-    for (std::size_t i = 0; i < x.size(); ++i) {
-        if (x[i] != y[i]) {
-            return digitLess(x[i], y[i]) ? -1 : 1;
-        }
+static bool isLess(const Digits& x, const Digits& y) {
+    Digits xs = x;
+    Digits ys = y;
+    while (!xs.empty()) {
+        char p = xs.front();
+        char q = ys.front();
+        xs.erase(xs.begin());
+        ys.erase(ys.begin());
+        if (p != q) return digitLess(p, q);
     }
-    return 0;
+    return false;
 }
 
 static Digits addMag(const Digits& x, const Digits& y, bool* overflow = nullptr) {
-    Digits out(x.size(), kZero);
+    Digits xs = x;
+    Digits ys = y;
+    Digits out;
     bool carry = false;
-    for (int i = static_cast<int>(x.size()) - 1; i >= 0; --i) {
+    while (!xs.empty()) {
+        char p = xs.back();
+        char q = ys.back();
+        xs.pop_back();
+        ys.pop_back();
         char cin = digitOf(carry);
-        char s = digitAdd(x[i], y[i]);
-        out[i] = digitAdd(s, cin);
-        carry = digitWraps(x[i], y[i]) || digitWraps(s, cin);
+        char s = digitAdd(p, q);
+        out.insert(out.begin(), digitAdd(s, cin));
+        carry = digitWraps(p, q) || digitWraps(s, cin);
     }
     if (carry && overflow) *overflow = true;
     return out;
 }
 
 static Digits subMag(const Digits& x, const Digits& y) {
-    Digits out(x.size(), kZero);
+    Digits xs = x;
+    Digits ys = y;
+    Digits out;
     bool borrow = false;
-    for (int i = static_cast<int>(x.size()) - 1; i >= 0; --i) {
+    while (!xs.empty()) {
+        char p = xs.back();
+        char q = ys.back();
+        xs.pop_back();
+        ys.pop_back();
         char bin = digitOf(borrow);
-        char t = digitAdd(y[i], bin);
-        char d = digitSub(x[i], t);
-        borrow = digitWraps(y[i], bin) || digitWraps(d, t);
-        out[i] = d;
+        char t = digitAdd(q, bin);
+        char d = digitSub(p, t);
+        borrow = digitWraps(q, bin) || digitWraps(d, t);
+        out.insert(out.begin(), d);
     }
     return out;
 }
 
 static Digits shiftLeft(const Digits& x, bool* overflow) {
     if (x.front() != kZero && overflow) *overflow = true;
-    Digits out(x.begin() + 1, x.end());
+    Digits out = x;
+    out.erase(out.begin());
     out.push_back(kZero);
     return out;
 }
@@ -131,32 +147,31 @@ static Digits mulDigit(const Digits& x, char d, bool* overflow) {
 
 static Digits mulMag(const Digits& x, const Digits& y, bool* overflow) {
     Digits acc = zero();
-    for (std::size_t j = 0; j < y.size(); ++j) {
+    for (char digit : y) {
         acc = shiftLeft(acc, overflow);
-        acc = addMag(acc, mulDigit(x, y[j], overflow), overflow);
+        acc = addMag(acc, mulDigit(x, digit, overflow), overflow);
     }
     return acc;
 }
 
 static std::pair<Digits, Digits> divMod(const Digits& x, const Digits& y) {
-    Digits divisor;
-    divisor.push_back(kZero);
+    Digits divisor(1, kZero);
     divisor.insert(divisor.end(), y.begin(), y.end());
 
     Digits rest(kLen + 1, kZero);
-    Digits quotient = zero();
-    for (std::size_t i = 0; i < x.size(); ++i) {
+    Digits quotient;
+    for (char c : x) {
         rest.erase(rest.begin());
-        rest.push_back(x[i]);
+        rest.push_back(c);
         char digit = kZero;
-        while (compare(rest, divisor) >= 0) {
+        while (!isLess(rest, divisor)) {
             rest = subMag(rest, divisor);
             digit = kNext.at(digit);
         }
-        quotient[i] = digit;
+        quotient.push_back(digit);
     }
-    Digits remainder(rest.begin() + 1, rest.end());
-    return std::make_pair(quotient, remainder);
+    rest.erase(rest.begin());
+    return std::make_pair(quotient, rest);
 }
 
 static Digits gcdMag(Digits x, Digits y) {
@@ -183,20 +198,21 @@ static Number makeNumber(bool neg, const Digits& mag) {
 static Number parse(const Digits& v) {
     bool neg = !v.empty() && v.front() == '-';
     Digits mag = zero();
-    std::size_t dst = mag.size();
-    for (std::size_t src = v.size(); src > 0 && dst > 0; --src) {
-        if (v[src - 1] != '-') mag[--dst] = v[src - 1];
+    for (char c : v) {
+        if (c == '-') continue;
+        mag.erase(mag.begin());
+        mag.push_back(c);
     }
     return makeNumber(neg, mag);
 }
 
 static Digits toDigits(const Number& n) {
-    std::size_t first = 0;
-    while (first < n.mag.size() && n.mag[first] == kZero) ++first;
-    if (first == n.mag.size()) return Digits(1, kZero);
     Digits out;
-    if (n.neg) out.push_back('-');
-    out.insert(out.end(), n.mag.begin() + first, n.mag.end());
+    for (char c : n.mag) {
+        if (c != kZero || !out.empty()) out.push_back(c);
+    }
+    if (out.empty()) return Digits(1, kZero);
+    if (n.neg) out.insert(out.begin(), '-');
     return out;
 }
 
@@ -207,7 +223,7 @@ static std::string text(const Number& n) {
 
 static Number addNum(const Number& x, const Number& y, bool* overflow) {
     if (x.neg == y.neg) return makeNumber(x.neg, addMag(x.mag, y.mag, overflow));
-    if (compare(x.mag, y.mag) >= 0) return makeNumber(x.neg, subMag(x.mag, y.mag));
+    if (!isLess(x.mag, y.mag)) return makeNumber(x.neg, subMag(x.mag, y.mag));
     return makeNumber(y.neg, subMag(y.mag, x.mag));
 }
 
@@ -260,6 +276,7 @@ std::string BigCalculator::pow(const std::vector<char>& num1, const std::vector<
     Number base = parse(num1);
     Number exponent = parse(num2);
     if (exponent.neg) return "error";
+    if (isZero(base.mag) && isZero(exponent.mag)) return "error";
     if (isZero(exponent.mag)) return "b";
     if (isZero(base.mag)) return "a";
     if (base.mag == one()) {
@@ -289,12 +306,12 @@ std::vector<char> BigCalculator::gcd(const std::vector<char>& num1, const std::v
 std::vector<char> BigCalculator::lcm(const std::vector<char>& num1, const std::vector<char>& num2) {
     Number x = parse(num1);
     Number y = parse(num2);
-    Number result = makeNumber(false, zero());
+    normalSize = true;
+    if (isZero(x.mag) || isZero(y.mag)) return Digits(1, kZero);
+
+    Digits q = divMod(x.mag, gcdMag(x.mag, y.mag)).first;
     bool overflow = false;
-    if (!isZero(x.mag) && !isZero(y.mag)) {
-        Digits q = divMod(x.mag, gcdMag(x.mag, y.mag)).first;
-        result = makeNumber(false, mulMag(q, y.mag, &overflow));
-    }
+    Number product = makeNumber(false, mulMag(q, y.mag, &overflow));
     normalSize = !overflow;
-    return toDigits(result);
+    return toDigits(product);
 }
