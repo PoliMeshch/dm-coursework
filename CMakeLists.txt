@@ -4,6 +4,10 @@ project(BigCalculator CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if(MSVC)
+    add_compile_options(/utf-8 /EHsc)
+endif()
+
 set(CALC_SOURCES
     src/BigCalculator.cpp
 )
@@ -11,7 +15,5 @@ set(CALC_SOURCES
 add_library(CalcCore STATIC ${CALC_SOURCES})
 target_include_directories(CalcCore PUBLIC src/)
 
-add_executable(Calculator
-    app/main.cpp
-)
+add_executable(Calculator app/main.cpp)
 target_link_libraries(Calculator PRIVATE CalcCore)
