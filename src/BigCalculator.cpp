@@ -52,6 +52,7 @@ static char digitSub(char x, char y) { return tables().diff.at(std::make_pair(x,
 static bool digitWraps(char x, char y) { return tables().carry.at(std::make_pair(x, y)); }
 static char digitOf(bool flag) { return flag ? kOne : kZero; }
 
+
 static bool digitLess(char x, char y) {
     for (char c = kZero; c != y; c = kNext.at(c)) {
         if (c == x) return true;
@@ -78,6 +79,17 @@ static bool isZero(const Digits& d) {
         if (c != kZero) return false;
     }
     return true;
+}
+
+static bool tooLong(const Digits& v) {
+    Digits d = v;
+    if (!d.empty() && d.front() == '-') d.erase(d.begin());
+    return static_cast<int>(d.size()) > kLen;
+}
+
+static Digits overflowWord() {
+    std::string word = "overflow";
+    return Digits(word.begin(), word.end());
 }
 
 static bool isLess(const Digits& x, const Digits& y) {
@@ -230,31 +242,50 @@ static Number addNum(const Number& x, const Number& y, bool* overflow) {
 BigCalculator::BigCalculator() : normalSize(true) {}
 
 std::vector<char> BigCalculator::add(const std::vector<char>& num1, const std::vector<char>& num2) {
+    if (tooLong(num1) || tooLong(num2)) {
+        normalSize = false;
+        return overflowWord();
+    }
     bool overflow = false;
     Number r = addNum(parse(num1), parse(num2), &overflow);
     normalSize = !overflow;
+    if (overflow) return overflowWord();
     return toDigits(r);
 }
 
 std::vector<char> BigCalculator::subtract(const std::vector<char>& num1, const std::vector<char>& num2) {
+    if (tooLong(num1) || tooLong(num2)) {
+        normalSize = false;
+        return overflowWord();
+    }
     Number y = parse(num2);
     Number minusY = makeNumber(!y.neg, y.mag);
     bool overflow = false;
     Number r = addNum(parse(num1), minusY, &overflow);
     normalSize = !overflow;
+    if (overflow) return overflowWord();
     return toDigits(r);
 }
 
 std::vector<char> BigCalculator::multiply(const std::vector<char>& num1, const std::vector<char>& num2) {
+    if (tooLong(num1) || tooLong(num2)) {
+        normalSize = false;
+        return overflowWord();
+    }
     Number x = parse(num1);
     Number y = parse(num2);
     bool overflow = false;
     Number r = makeNumber(x.neg != y.neg, mulMag(x.mag, y.mag, &overflow));
     normalSize = !overflow;
+    if (overflow) return overflowWord();
     return toDigits(r);
 }
 
 std::string BigCalculator::division(const std::vector<char>& num1, const std::vector<char>& num2) {
+    if (tooLong(num1) || tooLong(num2)) {
+        normalSize = false;
+        return "overflow";
+    }
     normalSize = true;
     Number x = parse(num1);
     Number y = parse(num2);
@@ -272,6 +303,10 @@ std::string BigCalculator::division(const std::vector<char>& num1, const std::ve
 }
 
 std::string BigCalculator::pow(const std::vector<char>& num1, const std::vector<char>& num2) {
+    if (tooLong(num1) || tooLong(num2)) {
+        normalSize = false;
+        return "overflow";
+    }
     normalSize = true;
     Number base = parse(num1);
     Number exponent = parse(num2);
@@ -297,6 +332,10 @@ std::string BigCalculator::pow(const std::vector<char>& num1, const std::vector<
 }
 
 std::vector<char> BigCalculator::gcd(const std::vector<char>& num1, const std::vector<char>& num2) {
+    if (tooLong(num1) || tooLong(num2)) {
+        normalSize = false;
+        return overflowWord();
+    }
     Number x = parse(num1);
     Number y = parse(num2);
     normalSize = true;
@@ -304,6 +343,10 @@ std::vector<char> BigCalculator::gcd(const std::vector<char>& num1, const std::v
 }
 
 std::vector<char> BigCalculator::lcm(const std::vector<char>& num1, const std::vector<char>& num2) {
+    if (tooLong(num1) || tooLong(num2)) {
+        normalSize = false;
+        return overflowWord();
+    }
     Number x = parse(num1);
     Number y = parse(num2);
     normalSize = true;
@@ -313,5 +356,6 @@ std::vector<char> BigCalculator::lcm(const std::vector<char>& num1, const std::v
     bool overflow = false;
     Number product = makeNumber(false, mulMag(q, y.mag, &overflow));
     normalSize = !overflow;
+    if (overflow) return overflowWord();
     return toDigits(product);
 }

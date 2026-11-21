@@ -40,7 +40,7 @@ static std::string toText(const std::vector<char>& v) {
 static bool isValidNumber(const std::string& s) {
     std::string digits = s;
     if (!digits.empty() && digits.front() == '-') digits.erase(digits.begin());
-    if (digits.empty() || digits.size() > 8) return false;
+    if (digits.empty()) return false;
     for (char c : digits) {
         if (c < 'a' || c > 'k') return false;
     }
